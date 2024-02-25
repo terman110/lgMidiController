@@ -1,10 +1,35 @@
+// This project uses an Arduino Due for MIDI compatible USB communication if wanted
+
+//#define PRINT_SERIAL
+#define USE_USB_MIDI
+#define USE_RGB
+#define USE_RGB_STRIP
+
 #include <MIDI.h>     // MIDI Library
+#ifdef USE_USB_MIDI
+  #include <USB-MIDI.h> // USB-MIDI Library
+#endif
 #include <Bounce2.h>  // Bounce2 Library
 
 #include "MidiChannel.h"
 #include "Display.h"
+#ifdef USE_RGB_STRIP
+  #include "LedStrip.h"
+#endif
 
 #define LED_PIN               LED_BUILTIN
+
+#ifdef USE_RGB
+  #define RGB_STRIP_G         3
+  #define RGB_STRIP_R         4
+  #define RGB_STRIP_B         6
+#endif
+
+// TX1: 18
+// RX1: 19
+
+// SDA: 20
+// SCL: 21
 
 #define PIN_IN_CH_1           22    // MIDI channel selection: Bit 1
 #define PIN_IN_CH_2           23    // MIDI channel selection: Bit 2
@@ -38,17 +63,23 @@
 #define PIN_IN_TRSPRT_RIGHT   47    // Transport button: right: CC22
 #define PIN_IN_TRSPRT_UP      48    // Transport button: up:    CC23
 
+#define PIN_IN_SW_MODE        49    // Mode switch: MIDI or USB-MIDI
+
 #define DEBOUNCE_BUTTON_MS    5     // Debounce duration in ms
 #define DEBOUNCE_KEY_MS       5     // Debounce duration in ms
 #define CC_DELAY_MS           2     // Number of ms between enabling and disabling CC
 
-
 //MIDI_CREATE_DEFAULT_INSTANCE();
 MIDI_CREATE_INSTANCE(HardwareSerial, Serial1, MIDI);  // Initialize serial MIDI on TX1
+#ifdef USE_USB_MIDI  
+  //USBMIDI_CREATE_DEFAULT_INSTANCE();
+  USBMIDI_CREATE_INSTANCE(0, MIDIUSB)                 // Initialize native USB MIDI
+#endif
 
-int Channel = 1;    // Midi channel, read from DIP
-int Octave = 2;     // Current octave. -1 to 9.
-bool IsHold = false;  // Is hold mode active?
+int Channel = 1;          // Midi channel, read from DIP
+int Octave = 2;           // Current octave. -1 to 9.
+bool IsHold = false;      // Is hold mode active?
+bool UseUsbMidi = false;  // Use native USB MIDI?
 
 Bounce2::Button btnKey1_C = Bounce2::Button();
 Bounce2::Button btnKey2_Cis = Bounce2::Button();
@@ -78,31 +109,67 @@ int KeyStates[] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,  };
 
 void setup()
 {
+#ifdef PRINT_SERIAL
   Serial.begin(115200);
+  Serial.println("Launching MIDI controller");
+#endif
   
   // Set LED pin
   pinMode(LED_PIN, OUTPUT);
+  
+#ifdef USE_USB_MIDI
+  // Option for MIDI mode selection
+  pinMode(PIN_IN_SW_MODE, INPUT);
+  int nMode = digitalRead(PIN_IN_SW_MODE);
+  if (nMode == 0)
+  {
+    UseUsbMidi = false;
+#ifdef PRINT_SERIAL
+    Serial.println("Use serial MIDI");
+#endif
+  }
+  else
+  {
+    UseUsbMidi = true;
+#ifdef PRINT_SERIAL
+    Serial.println("Use USB-MIDI");
+#endif
+  }
+#endif
 
   // Read MIDI channel from DIP switches
   Channel = ReadMidiChannel(PIN_IN_CH_1, PIN_IN_CH_2, PIN_IN_CH_3, PIN_IN_CH_4);
 
   // Launch MIDI and set channel
-  MIDI.begin(Channel);
-
+#ifdef USE_USB_MIDI
+  if (UseUsbMidi)
+  {  
+    MIDIUSB.begin(Channel);
+  }
+  else
+#endif
+  {  
+    MIDI.begin(Channel);
+  }
+#ifdef PRINT_SERIAL
+  Serial.print("MIDI Channel ");
+  Serial.println(Channel);
+#endif
+        
   // Setup debounce button
-  RegisterButton(&btnKey1_C, PIN_IN_KEY_C_1, DEBOUNCE_KEY_MS);
-  RegisterButton(&btnKey2_Cis, PIN_IN_KEY_Cis_2, DEBOUNCE_KEY_MS);
-  RegisterButton(&btnKey3_D, PIN_IN_KEY_D_3, DEBOUNCE_KEY_MS);
-  RegisterButton(&btnKey4_Dis, PIN_IN_KEY_Dis_4, DEBOUNCE_KEY_MS);
-  RegisterButton(&btnKey5_E, PIN_IN_KEY_E_5, DEBOUNCE_KEY_MS);
-  RegisterButton(&btnKey6_F, PIN_IN_KEY_F_6, DEBOUNCE_KEY_MS);
-  RegisterButton(&btnKey7_Fis, PIN_IN_KEY_Fis_7, DEBOUNCE_KEY_MS);
-  RegisterButton(&btnKey8_G, PIN_IN_KEY_G_8, DEBOUNCE_KEY_MS);
-  RegisterButton(&btnKey9_Gis, PIN_IN_KEY_Gis_9, DEBOUNCE_KEY_MS);
-  RegisterButton(&btnKey10_A, PIN_IN_KEY_A_10, DEBOUNCE_KEY_MS);
-  RegisterButton(&btnKey11_Ais, PIN_IN_KEY_Ais_11, DEBOUNCE_KEY_MS);
-  RegisterButton(&btnKey12_B, PIN_IN_KEY_B_12, DEBOUNCE_KEY_MS);
-  RegisterButton(&btnKey13_C, PIN_IN_KEY_C_13, DEBOUNCE_KEY_MS);
+  RegisterKey(&btnKey1_C, PIN_IN_KEY_C_1, DEBOUNCE_KEY_MS);
+  RegisterKey(&btnKey2_Cis, PIN_IN_KEY_Cis_2, DEBOUNCE_KEY_MS);
+  RegisterKey(&btnKey3_D, PIN_IN_KEY_D_3, DEBOUNCE_KEY_MS);
+  RegisterKey(&btnKey4_Dis, PIN_IN_KEY_Dis_4, DEBOUNCE_KEY_MS);
+  RegisterKey(&btnKey5_E, PIN_IN_KEY_E_5, DEBOUNCE_KEY_MS);
+  RegisterKey(&btnKey6_F, PIN_IN_KEY_F_6, DEBOUNCE_KEY_MS);
+  RegisterKey(&btnKey7_Fis, PIN_IN_KEY_Fis_7, DEBOUNCE_KEY_MS);
+  RegisterKey(&btnKey8_G, PIN_IN_KEY_G_8, DEBOUNCE_KEY_MS);
+  RegisterKey(&btnKey9_Gis, PIN_IN_KEY_Gis_9, DEBOUNCE_KEY_MS);
+  RegisterKey(&btnKey10_A, PIN_IN_KEY_A_10, DEBOUNCE_KEY_MS);
+  RegisterKey(&btnKey11_Ais, PIN_IN_KEY_Ais_11, DEBOUNCE_KEY_MS);
+  RegisterKey(&btnKey12_B, PIN_IN_KEY_B_12, DEBOUNCE_KEY_MS);
+  RegisterKey(&btnKey13_C, PIN_IN_KEY_C_13, DEBOUNCE_KEY_MS);
 
   RegisterButton(&btnOctUp, PIN_IN_OCT_UP, DEBOUNCE_BUTTON_MS);
   RegisterButton(&btnOctDown, PIN_IN_OCT_DOWN, DEBOUNCE_BUTTON_MS);
@@ -116,22 +183,47 @@ void setup()
   RegisterButton(&btnAuxTrsprtUp, PIN_IN_TRSPRT_UP, DEBOUNCE_BUTTON_MS);
 
   setupDisplay();
+
+  RgbOff();
+
+#ifdef USE_RGB_STRIP
+  setupStrip();
+#endif
+
+#ifdef PRINT_SERIAL
+  Serial.println("Setup done. Starting loop.");
+#endif
 }
 
 void loop()
-{
-
+{  
   btnOctUp.update();
   if (btnOctUp.pressed() && Octave < 8)
+  {
     Octave++;
+#ifdef PRINT_SERIAL
+    Serial.println("Octave up");
+#endif
+  }
 
   btnOctDown.update();
   if (btnOctDown.pressed() && Octave > -2)
+  {
     Octave--;
+#ifdef PRINT_SERIAL
+    Serial.println("Octave down");
+#endif
+  }
 
   btnAuxHold.update();
   if (btnAuxHold.pressed())
+  {
     IsHold = !IsHold;
+#ifdef PRINT_SERIAL
+    Serial.print("Hold: ");
+    Serial.println(IsHold);
+#endif
+  }
 
   PerformKey(btnKey1_C, 0);
   PerformKey(btnKey2_Cis, 1);
@@ -155,7 +247,18 @@ void loop()
   PerformCC(btnAuxCtrl2, 5);
   PerformCC(btnAuxCtrl3, 6);
   
-  loopDisplay(Octave, IsHold, Channel);
+  loopDisplay(Octave, IsHold, Channel, UseUsbMidi);
+
+#ifdef USE_RGB_STRIP
+  loopStrip(KeyStates);
+#endif
+}
+
+void RegisterKey(Bounce2::Button* btn, int channel, int debounce_ms)
+{
+  btn->attach(channel, INPUT_PULLUP); // INPUT: external pull-up, INPUT_PULLUP: internal pull-up
+  btn->interval(debounce_ms);
+  btn->setPressedState(HIGH);
 }
 
 void RegisterButton(Bounce2::Button* btn, int channel, int debounce_ms)
@@ -181,37 +284,101 @@ void PerformKey(Bounce2::Button &button, int idxKey)
       {
         digitalWrite(LED_PIN, HIGH);
         int key = KeyIndexToNote(idxKey);
-        MIDI.sendNoteOn(key, 127, Channel);
+        
+#ifdef USE_USB_MIDI
+        if (UseUsbMidi)
+        {  
+          MIDIUSB.sendNoteOn(key, 127, Channel);
+        }
+        else
+#endif
+        {  
+          MIDI.sendNoteOn(key, 127, Channel);
+        }
+        
         KeyStates[idxKey] = key;
         digitalWrite(LED_PIN, LOW);
+#ifdef PRINT_SERIAL
+        Serial.print(key);
+        Serial.println(" hold");
+#endif
+        RgbOn();
       }
       else
       {
         digitalWrite(LED_PIN, HIGH);
-        MIDI.sendNoteOff(KeyStates[idxKey], 0, Channel);
+        
+#ifdef USE_USB_MIDI
+        if (UseUsbMidi)
+        {  
+          MIDIUSB.sendNoteOff(KeyStates[idxKey], 0, Channel);
+        }
+        else
+#endif
+        {  
+          MIDI.sendNoteOff(KeyStates[idxKey], 0, Channel);
+        }
+        
         digitalWrite(LED_PIN, LOW);
         KeyStates[idxKey] = -1;
+#ifdef PRINT_SERIAL
+        Serial.print(KeyIndexToNote(idxKey));
+        Serial.println(" hold released");
+#endif
+        RgbOff();
       }
     }
   }
   // !Hold: Hold note only while key is pressed
   else
   {
-    bool isPressed = !button.read(); // Inverted to check press down correctly
+    bool isPressed = button.read(); // Inverted to check press down correctly
     if (isPressed && KeyStates[idxKey] < 0)
     {
       digitalWrite(LED_PIN, HIGH);
       int key = KeyIndexToNote(idxKey);
-      MIDI.sendNoteOn(key, 127, Channel);
+    
+#ifdef USE_USB_MIDI
+      if (UseUsbMidi)
+      {  
+        MIDIUSB.sendNoteOn(key, 127, Channel);
+      }
+      else
+#endif
+      {  
+        MIDI.sendNoteOn(key, 127, Channel);
+      }
+      
       KeyStates[idxKey] = key;
       digitalWrite(LED_PIN, LOW);
+#ifdef PRINT_SERIAL
+      Serial.print(key);
+      Serial.println(" pressed");
+#endif
+      RgbOn();
     }
     else if (!isPressed && KeyStates[idxKey] >= 0)
     {
       digitalWrite(LED_PIN, HIGH);
-      MIDI.sendNoteOff(KeyStates[idxKey], 0, Channel);
+
+#ifdef USE_USB_MIDI
+      if (UseUsbMidi)
+      {  
+        MIDIUSB.sendNoteOff(KeyStates[idxKey], 0, Channel);
+      }
+      else
+#endif
+      {  
+        MIDI.sendNoteOff(KeyStates[idxKey], 0, Channel);
+      }
+      
       digitalWrite(LED_PIN, LOW);
       KeyStates[idxKey] = -1;
+#ifdef PRINT_SERIAL
+      Serial.print(KeyIndexToNote(idxKey));
+      Serial.println(" released");
+#endif
+      RgbOff();
     }
   }
 }
@@ -228,10 +395,37 @@ void PerformCC(Bounce2::Button &button, int idxCC)
   int CC = 20 + idxCC;
   
   digitalWrite(LED_PIN, HIGH);
-  MIDI.sendControlChange(CC, 127, Channel);
+
+#ifdef USE_USB_MIDI
+  if (UseUsbMidi)
+  {  
+    MIDIUSB.sendControlChange(CC, 127, Channel);
+  }
+  else
+#endif
+  {  
+    MIDI.sendControlChange(CC, 127, Channel);
+  }
+  
   delay(CC_DELAY_MS);
-  MIDI.sendControlChange(CC, 0, Channel);
+
+#ifdef USE_USB_MIDI
+  if (UseUsbMidi)
+  {  
+    MIDIUSB.sendControlChange(CC, 0, Channel);
+  }
+  else
+#endif
+  {  
+    MIDI.sendControlChange(CC, 0, Channel);
+  }
+
   digitalWrite(LED_PIN, LOW);
+#ifdef PRINT_SERIAL
+  Serial.print("CC");
+  Serial.print(CC);
+  Serial.println(" send");
+#endif
 }
 
 int KeyIndexToNote(int idxKey)
@@ -249,3 +443,22 @@ int KeyIndexToNote(int idxKey)
   // C9 = 120
   return (Octave + 2) * 12 + idxKey;
 }
+
+void RgbOff()
+{
+  #ifdef USE_RGB
+    analogWrite(RGB_STRIP_G, 0);
+    analogWrite(RGB_STRIP_R, 128);
+    analogWrite(RGB_STRIP_B, 128);
+  #endif
+}
+
+void RgbOn()
+{
+  #ifdef USE_RGB
+    analogWrite(RGB_STRIP_G, 128);
+    analogWrite(RGB_STRIP_R, 0);
+    analogWrite(RGB_STRIP_B, 128);
+  #endif
+}
+ 

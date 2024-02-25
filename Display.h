@@ -117,6 +117,17 @@ void DrawChannel(int channel)
   display.print(str);
 }
 
+void DrawMode(bool useUsbMidi)
+{
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(0, 8);
+  if (useUsbMidi)
+    display.print("USB");
+  else
+    display.print("SERIAL");
+}
+
 void setupDisplay()
 {
   // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
@@ -138,16 +149,18 @@ void setupDisplay()
 int lastOctave = -999;
 bool lastIsHold = false;
 int lastChannel = -999;
+bool lastUseUsbMidi = false;
 
-void loopDisplay(int octave, bool isHold, int channel)
+void loopDisplay(int octave, bool isHold, int channel, bool useUsbMidi)
 {
   // Only draw if necessary!
   // This must stay responsive!
-  if (octave == lastOctave && isHold == lastIsHold && channel == lastChannel)
+  if (octave == lastOctave && isHold == lastIsHold && channel == lastChannel && useUsbMidi == lastUseUsbMidi)
     return;
   
   display.clearDisplay();
   DrawChannel(channel);
+  DrawMode(useUsbMidi);
   DrawOctave(octave);
   if (isHold)
     DrawHold();
@@ -157,4 +170,5 @@ void loopDisplay(int octave, bool isHold, int channel)
   lastOctave = octave;
   lastIsHold = isHold;
   lastChannel = channel;
+  lastUseUsbMidi = useUsbMidi;
 }
